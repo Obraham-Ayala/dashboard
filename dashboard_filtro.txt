@@ -1,0 +1,39 @@
+# ==============================================================================
+# SCRIPT 1: PROCESAMIENTO Y PREPARACIÓN DE DATOS (Ejecutar una sola vez)
+# ==============================================================================
+library(tidyverse)
+library(haven)
+
+# 1. Importar tu base original (Asegúrate de colocar el nombre exacto de tu archivo .sav o .xlsx)
+
+
+# 2. Transformación robusta resguardando las variables sensibles
+base_dashboard_long <- sumaria_2020_2024_panel %>%
+  select(
+    numpanh,
+    # Captura variaciones de nombres (mieo, mieo, miembros) del panel del INEI
+    matches("^(ubigeo|dominio|estrato|inghog1d|gashog2d|pobreza|mieo|mieo|miembros|factor_panel)_(20|21|22|23|24)$")
+  ) %>%
+  pivot_longer(
+    cols = matches("_(20|21|22|23|24)$"),   
+    names_to = c(".value", "ANIO"),          
+    names_pattern = "(.*)_(20|21|22|23|24)"  
+  ) %>%
+  mutate(
+    ANIO = paste0("20", ANIO),
+    dominio = as_factor(dominio),
+    estrato = as_factor(estrato),
+    pobreza = as_factor(pobreza),
+    DEPARTAMENTO_ID = substr(sprintf("%06d", as.integer(ubigeo)), 1, 2),
+    ingreso_mensual = inghog1d / 12,
+    gasto_mensual = gashog2d / 12
+  )
+
+# Corrección de seguridad: Si la variable se importó con variaciones, la estandarizamos como 'miembros'
+if("mieo" %in% names(base_dashboard_long)) base_dashboard_long <- rename(base_dashboard_long, miembros = mieo)
+if("mieo" %in% names(base_dashboard_long)) base_dashboard_long <- rename(base_dashboard_long, miembros = mieo)
+if(!"miembros" %in% names(base_dashboard_long)) base_dashboard_long$miembros <- 4 # Valor por defecto si no existiera
+
+# Guardar la base de datos limpia libre de errores
+saveRDS(base_dashboard_long, "base_para_dashboard.rds")
+print("¡Base de datos unificada y corregida guardada con éxito!")

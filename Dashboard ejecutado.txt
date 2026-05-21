@@ -1,0 +1,1002 @@
+# ==============================================================================
+# ENAHO PANEL 2020–2024 | DASHBOARD ANALÍTICO EJECUTIVO PREMIUM
+# Módulos 1, 4, 7 y 8 | Ingreso, Gasto y Bienestar del Hogar Peruano
+# ==============================================================================
+library(shiny)
+library(shinydashboard)
+library(tidyverse)
+library(plotly)
+
+# ── 1. CARGA Y ESTRUCTURACIÓN DE DATOS ─────────────────────────────────────────
+data_dash <- readRDS("base_para_dashboard.rds")
+
+tabla_regiones <- data.frame(
+  DEPARTAMENTO_ID = sprintf("%02d", 1:25),
+  DEPARTAMENTO_NOM = c(
+    "Amazonas", "Áncash", "Apurímac", "Arequipa", "Ayacucho", "Cajamarca",
+    "Callao", "Cusco", "Huancavelica", "Huánuco", "Ica", "Junín",
+    "La Libertad", "Lambayeque", "Lima Provincias", "Loreto", "Madre de Dios",
+    "Moquegua", "Pasco", "Piura", "Puno", "San Martín", "Tacna", "Tumbes", "Ucayali"
+  ),
+  stringsAsFactors = FALSE
+)
+
+data_dash <- data_dash %>%
+  left_join(tabla_regiones, by = "DEPARTAMENTO_ID") %>%
+  mutate(DEPARTAMENTO_NOM = ifelse(is.na(DEPARTAMENTO_NOM), "Lima Metropolitana", DEPARTAMENTO_NOM))
+
+# ── 2. PALETA & TIPOGRAFÍA CENTRAL ─────────────────────────────────────────────
+PALETTE <- list(
+  navy   = "#0D1B2A",
+  blue   = "#1B4F72",
+  accent = "#00C9A7",
+  gold   = "#F5A623",
+  danger = "#E74C3C",
+  warn   = "#F39C12",
+  ok     = "#27AE60",
+  light  = "#ECF0F1",
+  muted  = "#7F8C8D"
+)
+
+# ── 3. CSS PREMIUM ──────────────────────────────────────────────────────────────
+css_premium <- "
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ── Variables Globales ── */
+:root {
+  --navy:   #0D1B2A;
+  --blue:   #1B4F72;
+  --accent: #00C9A7;
+  --gold:   #F5A623;
+  --danger: #E74C3C;
+  --warn:   #F39C12;
+  --ok:     #27AE60;
+  --light:  #ECF0F1;
+  --muted:  #7F8C8D;
+  --card-bg: #FFFFFF;
+  --body-bg: #F0F4F8;
+}
+
+/* ── Base ── */
+body, .content-wrapper, .right-side {
+  background-color: var(--body-bg) !important;
+  font-family: 'DM Sans', sans-serif !important;
+  color: #1a1a2e !important;
+}
+
+/* ── Header ── */
+.main-header .navbar,
+.main-header .logo {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--blue) 100%) !important;
+  border-bottom: 3px solid var(--accent) !important;
+}
+.main-header .logo {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  color: #ffffff !important;
+  padding: 0 10px !important;
+  line-height: 1.3 !important;
+  display: flex !important;
+  align-items: center !important;
+  text-transform: none !important;
+}
+.main-header .logo .logo-sub {
+  display: block;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  color: var(--accent) !important;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ── Sidebar ── */
+.main-sidebar, .left-side {
+  background: linear-gradient(180deg, var(--navy) 0%, #152030 100%) !important;
+  border-right: 1px solid rgba(0,201,167,0.15) !important;
+}
+.sidebar-menu > li > a {
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.3px;
+  color: rgba(255,255,255,0.75) !important;
+  border-left: 3px solid transparent !important;
+  transition: all 0.25s ease !important;
+}
+.sidebar-menu > li.active > a,
+.sidebar-menu > li > a:hover {
+  color: #ffffff !important;
+  background: rgba(0,201,167,0.12) !important;
+  border-left-color: var(--accent) !important;
+}
+.sidebar-section-title {
+  padding: 18px 20px 6px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 3px !important;
+  text-transform: uppercase !important;
+  color: var(--accent) !important;
+  opacity: 0.9;
+}
+.form-group label {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase !important;
+  color: rgba(255,255,255,0.55) !important;
+  margin-bottom: 6px !important;
+}
+.form-control, .selectize-input {
+  background: rgba(255,255,255,0.07) !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  color: #ffffff !important;
+  border-radius: 6px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 13px !important;
+}
+.selectize-dropdown {
+  background: #1a2f45 !important;
+  border: 1px solid rgba(0,201,167,0.3) !important;
+  color: #fff !important;
+}
+.selectize-dropdown .option:hover,
+.selectize-dropdown .active {
+  background: rgba(0,201,167,0.2) !important;
+}
+.irs--shiny .irs-bar { background: var(--accent) !important; }
+.irs--shiny .irs-handle { background: #fff !important; border: 2px solid var(--accent) !important; }
+.irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single {
+  background: var(--navy) !important; color: var(--accent) !important; font-weight: 700 !important;
+}
+
+/* ── Tabs ── */
+.nav-tabs-custom {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+.nav-tabs-custom > .nav-tabs {
+  background: var(--navy) !important;
+  border-radius: 10px 10px 0 0 !important;
+  border: none !important;
+  padding: 0 8px;
+}
+.nav-tabs-custom > .nav-tabs > li > a {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.55) !important;
+  border: none !important;
+  border-bottom: 3px solid transparent !important;
+  background: transparent !important;
+  padding: 14px 18px !important;
+  transition: all 0.2s !important;
+}
+.nav-tabs-custom > .nav-tabs > li.active > a,
+.nav-tabs-custom > .nav-tabs > li > a:hover {
+  color: #ffffff !important;
+  border-bottom-color: var(--accent) !important;
+  background: transparent !important;
+}
+.nav-tabs-custom > .tab-content {
+  background: transparent !important;
+  padding: 20px 0 0 !important;
+  border: none !important;
+}
+
+/* ── Boxes ── */
+.box {
+  background: var(--card-bg) !important;
+  border-radius: 12px !important;
+  border: none !important;
+  box-shadow: 0 2px 12px rgba(13,27,42,0.08), 0 0 0 1px rgba(13,27,42,0.04) !important;
+  margin-bottom: 20px !important;
+  overflow: hidden !important;
+}
+.box-header {
+  background: var(--card-bg) !important;
+  border-bottom: 1px solid rgba(13,27,42,0.06) !important;
+  padding: 16px 20px !important;
+}
+.box-title {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--navy) !important;
+  letter-spacing: 0.2px;
+  line-height: 1.4 !important;
+}
+.box.box-solid > .box-header {
+  background: var(--navy) !important;
+  border-bottom: none !important;
+}
+.box.box-solid > .box-header .box-title,
+.box.box-solid > .box-header .box-title i {
+  color: #ffffff !important;
+}
+.box.box-solid.box-primary > .box-header { background: linear-gradient(135deg, var(--navy), var(--blue)) !important; }
+.box.box-solid.box-warning > .box-header { background: linear-gradient(135deg, #7D5A00, var(--warn)) !important; }
+.box.box-solid.box-danger  > .box-header { background: linear-gradient(135deg, #7B0B0B, var(--danger)) !important; }
+.box.box-solid.box-success > .box-header { background: linear-gradient(135deg, #0B5E2A, var(--ok)) !important; }
+.box.box-solid.box-info    > .box-header { background: linear-gradient(135deg, #0B3B5E, #2980B9) !important; }
+.box-body { padding: 18px 20px !important; }
+
+/* ── Value Boxes ── */
+.small-box {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
+  overflow: hidden !important;
+  position: relative;
+}
+.small-box h3 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.5px;
+  margin-bottom: 4px !important;
+}
+.small-box p {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 1.8px !important;
+  text-transform: uppercase !important;
+  opacity: 0.9;
+}
+.small-box .icon { opacity: 0.15 !important; font-size: 72px !important; }
+.bg-teal   { background: linear-gradient(135deg, #007A65, #00C9A7) !important; }
+.bg-blue   { background: linear-gradient(135deg, #0D1B2A, #1B4F72) !important; }
+.bg-purple { background: linear-gradient(135deg, #4A1880, #8E44AD) !important; }
+.bg-orange { background: linear-gradient(135deg, #B7450A, #E67E22) !important; }
+
+/* ── Ficha Analítica ── */
+.ficha-card {
+  background: linear-gradient(160deg, var(--navy) 0%, #152030 100%) !important;
+  border-radius: 10px;
+  padding: 22px;
+  height: 100%;
+  border-left: 4px solid var(--accent);
+}
+.ficha-card h3 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 17px !important; color: #fff !important;
+  margin: 0 0 4px 0 !important; font-weight: 700 !important;
+}
+.ficha-card .ficha-sub {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 10px !important; color: var(--accent) !important;
+  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px;
+}
+.ficha-card hr { border-color: rgba(255,255,255,0.12) !important; margin: 12px 0 !important; }
+.ficha-label {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 9px !important; font-weight: 700 !important;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(255,255,255,0.45) !important; margin-bottom: 3px;
+}
+.ficha-value {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 20px !important; font-weight: 700 !important;
+  margin-bottom: 14px !important;
+}
+.ficha-desc {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 12px !important; color: rgba(255,255,255,0.55) !important;
+  line-height: 1.6; margin-bottom: 12px;
+}
+
+/* ── Econometría / Verbatim ── */
+pre, .shiny-text-output {
+  font-family: 'DM Mono', 'Fira Code', monospace !important;
+  font-size: 12px !important;
+  background: #0D1B2A !important;
+  color: #00C9A7 !important;
+  border: 1px solid rgba(0,201,167,0.2) !important;
+  border-radius: 10px !important;
+  padding: 20px !important;
+  line-height: 1.7 !important;
+}
+
+/* ── Tabla Dinámica ── */
+.premium-table { width: 100%; border-collapse: collapse; }
+.premium-table thead tr {
+  background: var(--navy) !important;
+}
+.premium-table thead th {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 10px !important; font-weight: 700 !important;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--accent) !important; padding: 12px 16px !important;
+  border: none !important;
+}
+.premium-table tbody tr {
+  border-bottom: 1px solid rgba(13,27,42,0.06) !important;
+  transition: background 0.15s;
+}
+.premium-table tbody tr:hover { background: rgba(0,201,167,0.05) !important; }
+.premium-table tbody td {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 13px !important; padding: 11px 16px !important;
+  color: #1a2e3b !important;
+}
+.premium-table .td-num {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 14px !important; font-weight: 700 !important;
+  color: var(--navy) !important;
+}
+.badge-pobre    { background: #FDECEA; color: var(--danger); border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+.badge-extremo  { background: #FDF3E6; color: var(--warn);   border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+.badge-nopobre  { background: #EAF7F0; color: var(--ok);     border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+
+/* ── Animación entrada ── */
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(16px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.box, .small-box { animation: fadeUp 0.45s ease both; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,201,167,0.4); border-radius: 10px; }
+"
+
+# ── 4. UI ───────────────────────────────────────────────────────────────────────
+ui <- dashboardPage(
+  skin = "black",
+  
+  dashboardHeader(
+    title = tags$span(
+      style = "line-height:1.2; display:flex; flex-direction:column; justify-content:center;",
+      tags$span(style = "font-size:15px; font-weight:700;",
+                icon("chart-bar"), " ENAHO Analítica"),
+      tags$span(class = "logo-sub", "Panel de Datos · 2020–2024")
+    ),
+    titleWidth = 270
+  ),
+  
+  dashboardSidebar(
+    width = 270,
+    sidebarMenu(
+      id = "menu_principal",
+      style = "white-space: normal; padding-bottom: 20px;",
+      
+      menuItem(
+        tags$span(icon("th-large"), " Panel Ejecutivo"),
+        tabName = "dashboard_exec"
+      ),
+      
+      div(class = "sidebar-section-title", "Filtros Analíticos"),
+      
+      selectInput("select_dep", "Región / Departamento",
+                  choices = c("Todos", sort(unique(data_dash$DEPARTAMENTO_NOM)))),
+      
+      selectInput("select_dominio", "Macro-región Económica",
+                  choices = c("Todos", levels(data_dash$dominio))),
+      
+      sliderInput("slider_anio", "Horizonte Temporal",
+                  min = 2020, max = 2024, value = c(2020, 2024),
+                  step = 1, sep = "", ticks = TRUE)
+    )
+  ),
+  
+  dashboardBody(
+    tags$head(
+      tags$style(HTML(css_premium)),
+      tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
+      tags$link(rel = "stylesheet",
+                href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap")
+    ),
+    
+    tabBox(
+      id = "tabset_principal", width = 12,
+      
+      # ══ PESTAÑA 1: RESUMEN EJECUTIVO ════════════════════════════════════════
+      tabPanel(
+        tags$span(icon("chart-pie"), " Resumen Ejecutivo"),
+        
+        # KPIs
+        fluidRow(
+          valueBoxOutput("kpi_ingreso",  width = 3),
+          valueBoxOutput("kpi_gasto",    width = 3),
+          valueBoxOutput("kpi_hogares",  width = 3),
+          valueBoxOutput("kpi_brecha",   width = 3)
+        ),
+        
+        fluidRow(
+          # Ficha analítica mejorada
+          column(4,
+                 box(
+                   width = 12, solidHeader = FALSE,
+                   style = "padding:0 !important; background:transparent !important; box-shadow:none !important; border:none !important;",
+                   uiOutput("ficha_departamental")
+                 )
+          ),
+          
+          # Gráfico de barras departamental
+          box(
+            title = tags$span(icon("map-marker-alt"), " Ingreso Promedio Mensual por Departamento (S/.)"),
+            status = "primary", solidHeader = TRUE, width = 8,
+            plotOutput("mapa_peru", height = "430px")
+          )
+        ),
+        
+        fluidRow(
+          box(
+            title = tags$span(icon("chart-bar"), " Evolución Estructural de la Pobreza (Distribución %)"),
+            status = "warning", solidHeader = TRUE, width = 6,
+            plotlyOutput("barras_pobreza", height = "300px")
+          ),
+          box(
+            title = tags$span(icon("chart-pie"), " Composición de la Pobreza en el Período"),
+            status = "warning", solidHeader = TRUE, width = 6,
+            plotlyOutput("pie_pobreza_nativo", height = "300px")
+          )
+        )
+      ),
+      
+      # ══ PESTAÑA 2: TENDENCIAS ════════════════════════════════════════════════
+      tabPanel(
+        tags$span(icon("chart-line"), " Líneas de Tendencia"),
+        box(
+          title = tags$span(icon("chart-line"), " Trayectoria Temporal: Ingreso Neto vs Gasto Corriente del Hogar"),
+          status = "primary", solidHeader = TRUE, width = 12,
+          plotlyOutput("linea_tendencia", height = "400px")
+        )
+      ),
+      
+      # ══ PESTAÑA 3: VULNERABILIDAD ════════════════════════════════════════════
+      tabPanel(
+        tags$span(icon("shield-alt"), " Diagnóstico de Vulnerabilidad"),
+        fluidRow(
+          box(
+            title = tags$span(icon("crosshairs"), " Matriz de Estrés Financiero: Ingreso vs Gasto del Hogar"),
+            status = "danger", solidHeader = TRUE, width = 8,
+            plotlyOutput("scatter_decisiones", height = "420px")
+          ),
+          box(
+            title = tags$span(icon("exclamation-triangle"), " Implicancias para Política Pública"),
+            status = "danger", solidHeader = TRUE, width = 4,
+            div(
+              style = "padding: 6px 0;",
+              tags$p(
+                style = "font-family: 'DM Sans', sans-serif; font-size:13px; color:#555; line-height:1.7;",
+                "Hogares en la zona ", tags$strong("superior izquierda"), " presentan gasto mayor o igual al ingreso mensual, indicando fragilidad financiera estructural."
+              ),
+              hr(),
+              tags$div(
+                style = "display:flex; flex-direction:column; gap:10px; margin-top:12px;",
+                
+                div(style = "background:#FDECEA; border-left:4px solid #E74C3C; border-radius:6px; padding:10px 14px;",
+                    tags$p(style = "font-size:11px; font-weight:700; letter-spacing:1px; color:#E74C3C; margin:0 0 4px;", "ALTO RIESGO"),
+                    tags$p(style = "font-size:12px; color:#333; margin:0;", "Focalización inmediata de subsidios y transferencias condicionadas.")
+                ),
+                div(style = "background:#FDF3E6; border-left:4px solid #E67E22; border-radius:6px; padding:10px 14px;",
+                    tags$p(style = "font-size:11px; font-weight:700; letter-spacing:1px; color:#E67E22; margin:0 0 4px;", "VULNERABILIDAD"),
+                    tags$p(style = "font-size:12px; color:#333; margin:0;", "Alta propensión al endeudamiento informal y descapitalización.")
+                ),
+                div(style = "background:#EAF7F0; border-left:4px solid #27AE60; border-radius:6px; padding:10px 14px;",
+                    tags$p(style = "font-size:11px; font-weight:700; letter-spacing:1px; color:#27AE60; margin:0 0 4px;", "ESTABILIDAD"),
+                    tags$p(style = "font-size:12px; color:#333; margin:0;", "Hogares con capacidad de ahorro y acumulación de activos.")
+                )
+              )
+            )
+          )
+        )
+      ),
+      
+      # ══ PESTAÑA 4: CARGA FAMILIAR ═════════════════════════════════════════════
+      tabPanel(
+        tags$span(icon("users"), " Carga Familiar e Ingresos"),
+        box(
+          title = tags$span(icon("sitemap"), " Dispersión: Ingreso Mensual según Tamaño del Hogar"),
+          status = "primary", solidHeader = TRUE, width = 12,
+          plotlyOutput("scatter_relacion", height = "420px")
+        )
+      ),
+      
+      # ══ PESTAÑA 5: CONVERGENCIA REGIONAL ════════════════════════════════════════
+      tabPanel(
+        tags$span(icon("globe-americas"), " Convergencia Regional"),
+        
+        # Fila 1: Treemap + Barras de brecha
+        fluidRow(
+          box(
+            title = tags$span(icon("th"), " Mapa de Calor de Ingresos por Departamento (Treemap)"),
+            status = "primary", solidHeader = TRUE, width = 7,
+            plotlyOutput("treemap_ingresos", height = "380px")
+          ),
+          box(
+            title = tags$span(icon("balance-scale"), " Ranking: Brecha Ingreso–Gasto (S/.)"),
+            status = "success", solidHeader = TRUE, width = 5,
+            plotlyOutput("barras_brecha", height = "380px")
+          )
+        ),
+        
+        # Fila 2: Evolución multi-departamento
+        fluidRow(
+          box(
+            title = tags$span(icon("chart-line"), " Trayectorias de Convergencia: Ingreso Promedio por Departamento y Año"),
+            status = "info", solidHeader = TRUE, width = 12,
+            p(style = "font-family:'DM Sans',sans-serif; font-size:12px; color:#888; margin-bottom:10px;",
+              icon("info-circle"), " Cada línea representa un departamento. Permite identificar regiones que convergen o divergen respecto a la media nacional."),
+            plotlyOutput("lineas_convergencia", height = "360px")
+          )
+        )
+      )
+    )
+  )
+)
+
+# ── 5. SERVER ───────────────────────────────────────────────────────────────────
+server <- function(input, output) {
+  
+  # Filtro reactivo universal
+  data_filtrada <- reactive({
+    df <- data_dash %>%
+      filter(as.numeric(ANIO) >= input$slider_anio[1],
+             as.numeric(ANIO) <= input$slider_anio[2])
+    if (input$select_dep    != "Todos") df <- df %>% filter(DEPARTAMENTO_NOM == input$select_dep)
+    if (input$select_dominio != "Todos") df <- df %>% filter(dominio         == input$select_dominio)
+    df
+  })
+  
+  # ── KPIs ──────────────────────────────────────────────────────────────────────
+  output$kpi_ingreso <- renderValueBox({
+    val <- round(mean(data_filtrada()$ingreso_mensual, na.rm = TRUE), 0)
+    valueBox(
+      paste0("S/. ", format(val, big.mark = ",")),
+      tags$span(style = "letter-spacing:1.5px; font-size:11px;", "INGRESO MENSUAL"),
+      icon = icon("wallet"), color = "teal"
+    )
+  })
+  output$kpi_gasto <- renderValueBox({
+    val <- round(mean(data_filtrada()$gasto_mensual, na.rm = TRUE), 0)
+    valueBox(
+      paste0("S/. ", format(val, big.mark = ",")),
+      tags$span(style = "letter-spacing:1.5px; font-size:11px;", "GASTO MENSUAL"),
+      icon = icon("shopping-cart"), color = "blue"
+    )
+  })
+  output$kpi_hogares <- renderValueBox({
+    val <- length(unique(data_filtrada()$numpanh))
+    valueBox(
+      format(val, big.mark = ","),
+      tags$span(style = "letter-spacing:1.5px; font-size:11px;", "UNIDADES PANEL"),
+      icon = icon("home"), color = "purple"
+    )
+  })
+  output$kpi_brecha <- renderValueBox({
+    df <- data_filtrada()
+    brecha <- round(mean(df$ingreso_mensual - df$gasto_mensual, na.rm = TRUE), 0)
+    color  <- if (brecha >= 0) "green" else "red"
+    icon_n <- if (brecha >= 0) icon("arrow-up") else icon("arrow-down")
+    valueBox(
+      paste0("S/. ", format(brecha, big.mark = ",")),
+      tags$span(style = "letter-spacing:1.5px; font-size:11px;", "BRECHA ING.–GASTO"),
+      icon = icon_n, color = color
+    )
+  })
+  
+  # ── Ficha Analítica ────────────────────────────────────────────────────────────
+  output$ficha_departamental <- renderUI({
+    df   <- data_filtrada()
+    reg  <- input$select_dep
+    
+    ing20 <- mean(df$ingreso_mensual[df$ANIO == "2020"], na.rm = TRUE)
+    ing24 <- mean(df$ingreso_mensual[df$ANIO == "2024"], na.rm = TRUE)
+    
+    if (!is.nan(ing20) && !is.nan(ing24) && ing20 > 0) {
+      var_pct <- round(((ing24 - ing20) / ing20) * 100, 1)
+      color_v <- if (var_pct >= 0) "#00C9A7" else "#E74C3C"
+      signo   <- if (var_pct >= 0) "+" else ""
+      txt_var <- paste0(signo, var_pct, "% variación real (2020–2024)")
+    } else {
+      color_v <- "#888"; txt_var <- "Datos insuficientes"
+    }
+    
+    pob_pct <- df %>%
+      filter(!is.na(pobreza)) %>%
+      count(pobreza) %>%
+      mutate(p = n / sum(n) * 100) %>%
+      filter(pobreza != "No Pobre") %>%
+      summarise(t = round(sum(p), 1)) %>%
+      pull(t)
+    if (length(pob_pct) == 0 || is.na(pob_pct)) pob_pct <- 0
+    
+    gasto_med <- round(mean(df$gasto_mensual, na.rm = TRUE), 0)
+    
+    div(
+      class = "ficha-card",
+      h3(if (reg == "Todos") "Nivel Nacional" else reg),
+      div(class = "ficha-sub", "Ficha de Diagnóstico Socioeconómico"),
+      hr(),
+      div(class = "ficha-label", "Variación del Ingreso"),
+      div(class = "ficha-value", style = paste0("color:", color_v, ";"), txt_var),
+      div(class = "ficha-label", "Incidencia de Pobreza"),
+      div(class = "ficha-value", style = "color:#F5A623;", paste0(pob_pct, "% del panel")),
+      div(class = "ficha-label", "Gasto Promedio Mensual"),
+      div(class = "ficha-value", style = "color:#fff;", paste0("S/. ", format(gasto_med, big.mark = ","))),
+      div(class = "ficha-desc",
+          "Fuente: ENAHO Panel Módulos 1, 4, 7 y 8 · INEI · 2020–2024. Elaboración propia.")
+    )
+  })
+  
+  # ── Barras departamentales ─────────────────────────────────────────────────────
+  output$mapa_peru <- renderPlot({
+    dp <- data_filtrada() %>%
+      group_by(DEPARTAMENTO_NOM) %>%
+      summarise(ingreso = mean(ingreso_mensual, na.rm = TRUE), .groups = "drop")
+    
+    ggplot(dp, aes(x = reorder(DEPARTAMENTO_NOM, ingreso), y = ingreso, fill = ingreso)) +
+      geom_bar(stat = "identity", width = 0.72, show.legend = FALSE) +
+      geom_text(
+        aes(label = paste0("S/. ", format(round(ingreso, 0), big.mark = ","))),
+        hjust = -0.1, size = 3.3,
+        family = "DM Sans", fontface = "bold", color = "#0D1B2A"
+      ) +
+      coord_flip() +
+      scale_fill_gradient(low = "#1B4F72", high = "#00C9A7") +
+      scale_y_continuous(expand = expansion(mult = c(0, 0.18)),
+                         labels = scales::dollar_format(prefix = "S/. ", big.mark = ",")) +
+      labs(x = NULL, y = "Ingreso Promedio Mensual (S/.)") +
+      theme_minimal(base_size = 12, base_family = "DM Sans") +
+      theme(
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor   = element_blank(),
+        axis.text.y        = element_text(face = "bold", size = 10.5, color = "#1a2e3b"),
+        axis.text.x        = element_text(size = 9, color = "#888"),
+        axis.title.x       = element_text(size = 10, color = "#555", margin = margin(t = 10)),
+        plot.background    = element_rect(fill = "transparent", color = NA)
+      )
+  }, bg = "transparent")
+  
+  # ── Pie ────────────────────────────────────────────────────────────────────────
+  output$pie_pobreza_nativo <- renderPlotly({
+    df_p <- data_filtrada() %>% count(pobreza) %>% filter(!is.na(pobreza))
+    plot_ly(
+      df_p, labels = ~pobreza, values = ~n, type = "pie",
+      textinfo = "label+percent",
+      textfont = list(family = "DM Sans", size = 13, color = "#fff"),
+      marker   = list(
+        colors = c("#E74C3C", "#F5A623", "#27AE60"),
+        line   = list(color = "#fff", width = 2)
+      ),
+      hole = 0.42
+    ) %>%
+      layout(
+        showlegend = TRUE,
+        legend = list(font = list(family = "DM Sans", size = 11)),
+        margin = list(l = 10, r = 10, t = 10, b = 10),
+        paper_bgcolor = "rgba(0,0,0,0)"
+      )
+  })
+  
+  # ── Barras pobreza por año ──────────────────────────────────────────────────────
+  output$barras_pobreza <- renderPlotly({
+    p <- data_filtrada() %>%
+      filter(!is.na(pobreza)) %>%
+      group_by(ANIO, pobreza) %>%
+      summarise(Total = n(), .groups = "drop") %>%
+      ggplot(aes(x = ANIO, y = Total, fill = pobreza)) +
+      geom_bar(stat = "identity", position = "fill", width = 0.6) +
+      scale_fill_manual(values = c("#E74C3C", "#F5A623", "#27AE60")) +
+      scale_y_continuous(labels = scales::percent) +
+      labs(x = NULL, y = "Proporción", fill = NULL) +
+      theme_minimal(base_family = "DM Sans") +
+      theme(
+        panel.grid.minor   = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position    = "top",
+        axis.text          = element_text(face = "bold")
+      )
+    ggplotly(p, tooltip = c("x", "fill", "y")) %>%
+      layout(
+        paper_bgcolor = "rgba(0,0,0,0)",
+        plot_bgcolor  = "rgba(0,0,0,0)",
+        legend = list(orientation = "h", y = -0.15)
+      )
+  })
+  
+  # ── Tendencias ─────────────────────────────────────────────────────────────────
+  output$linea_tendencia <- renderPlotly({
+    p <- data_filtrada() %>%
+      group_by(ANIO) %>%
+      summarise(
+        Ingresos = mean(ingreso_mensual, na.rm = TRUE),
+        Gastos   = mean(gasto_mensual,   na.rm = TRUE),
+        .groups  = "drop"
+      ) %>%
+      pivot_longer(c(Ingresos, Gastos), names_to = "Indicador", values_to = "Monto") %>%
+      ggplot(aes(x = ANIO, y = Monto, group = Indicador, color = Indicador)) +
+      geom_ribbon(
+        data = . %>% select(ANIO, Indicador, Monto) %>%
+          pivot_wider(names_from = Indicador, values_from = Monto),
+        aes(x = ANIO, ymin = Gastos, ymax = Ingresos, group = 1),
+        fill = "#00C9A7", alpha = 0.10, inherit.aes = FALSE
+      ) +
+      geom_line(linewidth = 1.6) +
+      geom_point(size = 4, stroke = 1.5, fill = "white", shape = 21) +
+      scale_color_manual(values = c("#00C9A7", "#1B4F72")) +
+      scale_y_continuous(labels = scales::dollar_format(prefix = "S/. ", big.mark = ",")) +
+      labs(y = "Monto Promedio (S/.)", x = NULL, color = NULL) +
+      theme_minimal(base_family = "DM Sans", base_size = 13) +
+      theme(
+        panel.grid.minor = element_blank(),
+        legend.position  = "top",
+        axis.text        = element_text(face = "bold")
+      )
+    ggplotly(p) %>%
+      layout(
+        paper_bgcolor = "rgba(0,0,0,0)",
+        plot_bgcolor  = "rgba(0,0,0,0)",
+        legend = list(orientation = "h", y = 1.12)
+      )
+  })
+  
+  # ── Scatter vulnerabilidad ─────────────────────────────────────────────────────
+  output$scatter_decisiones <- renderPlotly({
+    p <- data_filtrada() %>%
+      filter(ingreso_mensual < 12000, gasto_mensual < 12000) %>%
+      ggplot(aes(x = ingreso_mensual, y = gasto_mensual, color = pobreza, text = paste0(
+        "Departamento: ", DEPARTAMENTO_NOM,
+        "<br>Ingreso: S/. ", round(ingreso_mensual, 0),
+        "<br>Gasto: S/. ",   round(gasto_mensual, 0),
+        "<br>Condición: ",   pobreza
+      ))) +
+      geom_point(alpha = 0.45, size = 1.8) +
+      geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#E74C3C", linewidth = 0.9) +
+      annotate("text", x = 1200, y = 11500, label = "Zona de Riesgo: Gasto > Ingreso",
+               color = "#E74C3C", family = "DM Sans", fontface = "bold", size = 3.5, hjust = 0) +
+      scale_color_manual(values = c("#E74C3C", "#F5A623", "#27AE60")) +
+      scale_x_continuous(labels = scales::dollar_format(prefix = "S/. ", big.mark = ",")) +
+      scale_y_continuous(labels = scales::dollar_format(prefix = "S/. ", big.mark = ",")) +
+      labs(x = "Ingreso Neto del Hogar (S/.)",
+           y = "Gasto en Consumo del Hogar (S/.)", color = NULL) +
+      theme_minimal(base_family = "DM Sans", base_size = 12) +
+      theme(
+        panel.grid.minor = element_blank(),
+        legend.position  = "top",
+        axis.text        = element_text(face = "bold")
+      )
+    ggplotly(p, tooltip = "text") %>%
+      layout(
+        paper_bgcolor = "rgba(0,0,0,0)",
+        plot_bgcolor  = "rgba(0,0,0,0)"
+      )
+  })
+  
+  # ── Scatter miembros ────────────────────────────────────────────────────────────
+  output$scatter_relacion <- renderPlotly({
+    p <- data_filtrada() %>%
+      filter(ingreso_mensual < 15000) %>%
+      ggplot(aes(x = miembros, y = ingreso_mensual, color = pobreza)) +
+      geom_jitter(alpha = 0.45, size = 1.5, width = 0.2) +
+      geom_smooth(method = "lm", color = "#0D1B2A", linewidth = 1, se = TRUE,
+                  fill = "#0D1B2A", alpha = 0.08) +
+      scale_color_manual(values = c("#E74C3C", "#F5A623", "#27AE60")) +
+      scale_y_continuous(labels = scales::dollar_format(prefix = "S/. ", big.mark = ",")) +
+      labs(x = "Tamaño del Hogar (N° de Miembros)",
+           y = "Ingreso Mensual Familiar (S/.)", color = NULL) +
+      theme_minimal(base_family = "DM Sans", base_size = 12) +
+      theme(panel.grid.minor = element_blank(), legend.position = "top")
+    ggplotly(p) %>%
+      layout(paper_bgcolor = "rgba(0,0,0,0)", plot_bgcolor = "rgba(0,0,0,0)")
+  })
+  
+  # ── TREEMAP DE INGRESOS ────────────────────────────────────────────────────────
+  # Siempre usa TODOS los departamentos (ignora filtro de región para mostrar mapa completo)
+  output$treemap_ingresos <- renderPlotly({
+    df_tree <- data_dash %>%
+      filter(
+        as.numeric(ANIO) >= input$slider_anio[1],
+        as.numeric(ANIO) <= input$slider_anio[2]
+      ) %>%
+      { if (input$select_dominio != "Todos") filter(., dominio == input$select_dominio) else . } %>%
+      group_by(DEPARTAMENTO_NOM) %>%
+      summarise(
+        Ingreso = mean(ingreso_mensual, na.rm = TRUE),
+        N       = n(),
+        .groups = "drop"
+      ) %>%
+      filter(!is.na(Ingreso), Ingreso > 0) %>%
+      arrange(desc(Ingreso)) %>%
+      mutate(
+        Rank  = row_number(),
+        Label = paste0("<b>", DEPARTAMENTO_NOM, "</b><br>S/. ", format(round(Ingreso, 0), big.mark = ",")),
+        # Color relativo: más claro = mayor ingreso
+        ColorVal = Ingreso
+      )
+    
+    plot_ly(
+      df_tree,
+      type    = "treemap",
+      labels  = ~DEPARTAMENTO_NOM,
+      parents = ~"",
+      values  = ~Ingreso,
+      text    = ~Label,
+      hovertemplate = paste0(
+        "<b>%{label}</b><br>",
+        "Ingreso Prom: S/. %{value:,.0f}<br>",
+        "Hogares en panel: %{customdata}<extra></extra>"
+      ),
+      customdata   = ~N,
+      textinfo     = "text",
+      marker = list(
+        colors    = ~ColorVal,
+        colorscale = list(c(0, "#1B4F72"), c(0.5, "#00796B"), c(1, "#00C9A7")),
+        showscale  = TRUE,
+        colorbar   = list(
+          title      = list(text = "Ingreso<br>Prom. (S/.)", font = list(size = 11)),
+          tickformat = ",.0f",
+          len        = 0.8
+        ),
+        line = list(color = "#fff", width = 1.5)
+      )
+    ) %>%
+      layout(
+        paper_bgcolor = "rgba(0,0,0,0)",
+        font          = list(family = "DM Sans"),
+        margin        = list(l = 0, r = 0, t = 0, b = 0)
+      )
+  })
+  
+  # ── BARRAS DE BRECHA (RANKING COMPLETO) ───────────────────────────────────────
+  output$barras_brecha <- renderPlotly({
+    df_b <- data_dash %>%
+      filter(
+        as.numeric(ANIO) >= input$slider_anio[1],
+        as.numeric(ANIO) <= input$slider_anio[2]
+      ) %>%
+      { if (input$select_dominio != "Todos") filter(., dominio == input$select_dominio) else . } %>%
+      group_by(DEPARTAMENTO_NOM) %>%
+      summarise(
+        Ingreso = round(mean(ingreso_mensual, na.rm = TRUE), 0),
+        Gasto   = round(mean(gasto_mensual,   na.rm = TRUE), 0),
+        Brecha  = round(mean(ingreso_mensual - gasto_mensual, na.rm = TRUE), 0),
+        .groups = "drop"
+      ) %>%
+      filter(!is.na(Brecha)) %>%
+      arrange(Brecha) %>%
+      mutate(
+        Color    = if_else(Brecha >= 0, "#00C9A7", "#E74C3C"),
+        DeptoFac = factor(DEPARTAMENTO_NOM, levels = DEPARTAMENTO_NOM),
+        Signo    = if_else(Brecha >= 0, "+", ""),
+        LabelTxt = paste0(Signo, format(Brecha, big.mark = ","))
+      )
+    
+    plot_ly(
+      df_b,
+      x           = ~Brecha,
+      y           = ~DeptoFac,
+      type        = "bar",
+      orientation = "h",
+      marker      = list(color = ~Color, line = list(color = "rgba(0,0,0,0.05)", width = 0.5)),
+      text        = ~LabelTxt,
+      textposition = "outside",
+      textfont    = list(size = 10, family = "DM Sans", color = "#333"),
+      customdata  = ~paste0(
+        "<b>", DEPARTAMENTO_NOM, "</b><br>",
+        "Ingreso: S/. ", format(Ingreso, big.mark = ","), "<br>",
+        "Gasto: S/. ",   format(Gasto,   big.mark = ","), "<br>",
+        "Brecha: S/. ",  format(Brecha,  big.mark = ",")
+      ),
+      hovertemplate = "%{customdata}<extra></extra>"
+    ) %>%
+      layout(
+        xaxis = list(
+          title         = "Brecha Neta (S/.)",
+          zeroline      = TRUE,
+          zerolinecolor = "#999",
+          zerolinewidth = 1.8,
+          tickformat    = ",.0f",
+          tickfont      = list(size = 10)
+        ),
+        yaxis  = list(title = "", tickfont = list(size = 9.5, family = "DM Sans")),
+        paper_bgcolor = "rgba(0,0,0,0)",
+        plot_bgcolor  = "rgba(0,0,0,0)",
+        margin = list(l = 5, r = 55, t = 5, b = 35),
+        font   = list(family = "DM Sans")
+      )
+  })
+  
+  # ── LÍNEAS DE CONVERGENCIA MULTI-DEPARTAMENTO ──────────────────────────────────
+  output$lineas_convergencia <- renderPlotly({
+    # Serie por departamento × año (siempre todos los deptos para ver convergencia)
+    df_conv <- data_dash %>%
+      filter(
+        as.numeric(ANIO) >= input$slider_anio[1],
+        as.numeric(ANIO) <= input$slider_anio[2]
+      ) %>%
+      { if (input$select_dominio != "Todos") filter(., dominio == input$select_dominio) else . } %>%
+      group_by(DEPARTAMENTO_NOM, ANIO) %>%
+      summarise(Ingreso = mean(ingreso_mensual, na.rm = TRUE), .groups = "drop") %>%
+      filter(!is.na(Ingreso))
+    
+    # Media nacional por año (línea de referencia)
+    media_nac <- df_conv %>%
+      group_by(ANIO) %>%
+      summarise(Media = mean(Ingreso, na.rm = TRUE), .groups = "drop")
+    
+    # Determinar departamentos destacados: el de mayor y menor ingreso en el último año
+    ultimo_anio <- max(df_conv$ANIO)
+    deptos_extremos <- df_conv %>%
+      filter(ANIO == ultimo_anio) %>%
+      arrange(Ingreso) %>%
+      slice(c(1, n())) %>%
+      pull(DEPARTAMENTO_NOM)
+    
+    # Construir figura base con todas las líneas departamentales
+    fig <- plot_ly(font = list(family = "DM Sans"))
+    
+    deptos <- unique(df_conv$DEPARTAMENTO_NOM)
+    for (dep in deptos) {
+      serie <- df_conv %>% filter(DEPARTAMENTO_NOM == dep)
+      es_extremo <- dep %in% deptos_extremos
+      es_filtrado <- (input$select_dep != "Todos" && dep == input$select_dep)
+      
+      fig <- fig %>% add_trace(
+        data        = serie,
+        x           = ~ANIO,
+        y           = ~Ingreso,
+        type        = "scatter",
+        mode        = "lines+markers",
+        name        = dep,
+        line        = list(
+          color = if (es_filtrado) "#F5A623" else if (es_extremo) "#00C9A7" else "rgba(100,140,180,0.35)",
+          width = if (es_filtrado || es_extremo) 2.5 else 1
+        ),
+        marker      = list(
+          size  = if (es_filtrado || es_extremo) 7 else 4,
+          color = if (es_filtrado) "#F5A623" else if (es_extremo) "#00C9A7" else "rgba(100,140,180,0.35)"
+        ),
+        showlegend  = es_filtrado || es_extremo,
+        hovertemplate = paste0("<b>", dep, "</b><br>Año: %{x}<br>Ingreso: S/. %{y:,.0f}<extra></extra>")
+      )
+    }
+    
+    # Línea de media nacional
+    fig <- fig %>% add_trace(
+      data           = media_nac,
+      x              = ~ANIO,
+      y              = ~Media,
+      type           = "scatter",
+      mode           = "lines",
+      name           = "Media Nacional",
+      line           = list(color = "#E74C3C", width = 2.2, dash = "dash"),
+      showlegend     = TRUE,
+      hovertemplate  = "Media Nacional<br>Año: %{x}<br>S/. %{y:,.0f}<extra></extra>"
+    )
+    
+    fig %>% layout(
+      xaxis = list(
+        title    = "Año",
+        tickmode = "array",
+        tickvals = unique(df_conv$ANIO),
+        tickfont = list(size = 11, face = "bold")
+      ),
+      yaxis = list(
+        title      = "Ingreso Promedio Mensual (S/.)",
+        tickformat = ",.0f"
+      ),
+      legend = list(
+        orientation = "h", x = 0, y = -0.18,
+        font = list(size = 11)
+      ),
+      paper_bgcolor = "rgba(0,0,0,0)",
+      plot_bgcolor  = "rgba(0,0,0,0)",
+      hovermode     = "closest",
+      margin        = list(l = 10, r = 10, t = 10, b = 60)
+    )
+  })
+}
+
+shinyApp(ui = ui, server = server)
